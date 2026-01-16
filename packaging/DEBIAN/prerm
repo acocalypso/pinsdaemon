@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+# Stop service
+systemctl stop sysupdate-api || true
+systemctl disable sysupdate-api || true
+
+# Remove logs or temp files if needed
+# rm -rf /opt/pinsdaemon/venv
+
+exit 0

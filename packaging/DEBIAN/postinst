@@ -1,0 +1,35 @@
+#!/bin/sh
+set -e
+
+# Create user if it doesn't exist
+if ! id "sysupdate-api" >/dev/null 2>&1; then
+    useradd -r -s /bin/false sysupdate-api
+fi
+
+# Set permissions
+chown -R sysupdate-api:sysupdate-api /opt/pinsdaemon
+chmod 755 /usr/local/bin/system-upgrade.sh
+chmod 440 /etc/sudoers.d/sysupdate-api
+
+# Setup Python virtual environment
+cd /opt/pinsdaemon
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv venv
+fi
+
+# Install dependencies
+if [ -f "requirements.txt" ]; then
+    echo "Installing Python dependencies..."
+    ./venv/bin/pip install -r requirements.txt
+fi
+
+# Fix ownership of venv created by root
+chown -R sysupdate-api:sysupdate-api /opt/pinsdaemon/venv
+
+# Systemd setup
+systemctl daemon-reload
+systemctl enable sysupdate-api
+systemctl restart sysupdate-api
+
+exit 0

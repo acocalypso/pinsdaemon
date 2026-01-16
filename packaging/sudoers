@@ -1,0 +1,1 @@
+sysupdate-api ALL=(root) NOPASSWD: /usr/local/bin/system-upgrade.sh
