@@ -1,0 +1,20 @@
+[Unit]
+Description=System Upgrade API Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=sysupdate-api
+Group=sysupdate-api
+# Set the working directory to where the app code is
+WorkingDirectory=/opt/pinsdeamon
+# Set environment variables
+Environment="API_TOKEN=your-secure-token-here"
+Environment="UPDATE_SCRIPT_PATH=/usr/local/bin/system-upgrade.sh"
+# Run uvicorn using the virtual environment
+ExecStart=/opt/pinsdeamon/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
