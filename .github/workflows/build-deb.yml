@@ -7,6 +7,9 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,13 +45,39 @@ jobs:
         cp packaging/DEBIAN/* build/DEBIAN/
         chmod 755 build/DEBIAN/postinst
         chmod 755 build/DEBIAN/prerm
+
+    - name: Get Version and Update Control
+      id: version
+      run: |
+        # Extract base version from control file
+        BASE_VERSION=$(grep "^Version:" packaging/DEBIAN/control | awk '{print $2}')
+        # Construct full version: 1.0.0-RUN_NUMBER
+        FULL_VERSION="${BASE_VERSION}-${{ github.run_number }}"
+        FILENAME="pinsdaemon_${FULL_VERSION}_arm64.deb"
+        
+        echo "Setting version to $FULL_VERSION"
+        sed -i "s/^Version:.*/Version: $FULL_VERSION/" build/DEBIAN/control
+        
+        echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
+        echo "filename=$FILENAME" >> $GITHUB_OUTPUT
         
     - name: Build Debian Package
       run: |
-        dpkg-deb --build build pinsdaemon_1.0.0_arm64.deb
+        dpkg-deb --build build ${{ steps.version.outputs.filename }}
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v3
       with:
         name: pinsdaemon-deb
-        path: pinsdaemon_1.0.0_arm64.deb
+        path: ${{ steps.version.outputs.filename }}
+
+    - name: Create Release
+      if: github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.full_version }}
+        name: Release v${{ steps.version.outputs.full_version }}
+        files: ${{ steps.version.outputs.filename }}
+        draft: false
+        prerelease: false
+
