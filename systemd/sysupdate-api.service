@@ -7,12 +7,12 @@ Type=simple
 User=sysupdate-api
 Group=sysupdate-api
 # Set the working directory to where the app code is
-WorkingDirectory=/opt/pinsdeamon
+WorkingDirectory=/opt/pinsdaemon
 # Set environment variables
 Environment="API_TOKEN=your-secure-token-here"
 Environment="UPDATE_SCRIPT_PATH=/usr/local/bin/system-upgrade.sh"
 # Run uvicorn using the virtual environment
-ExecStart=/opt/pinsdeamon/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/pinsdaemon/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5
 
