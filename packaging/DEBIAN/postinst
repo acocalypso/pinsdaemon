@@ -8,8 +8,18 @@ fi
 
 # Set permissions
 chown -R sysupdate-api:sysupdate-api /opt/pinsdaemon
-chmod 755 /usr/local/bin/system-upgrade.sh
+
+# Ensure sudoers file is owned by root (Critical for sudo to work)
+chown root:root /etc/sudoers.d/sysupdate-api
 chmod 440 /etc/sudoers.d/sysupdate-api
+
+# Ensure upgrade script is owned by root (Security)
+chown root:root /usr/local/bin/system-upgrade.sh
+chmod 755 /usr/local/bin/system-upgrade.sh
+
+# Ensure service file is owned by root
+chown root:root /etc/systemd/system/sysupdate-api.service
+chmod 644 /etc/systemd/system/sysupdate-api.service
 
 # Setup Python virtual environment
 cd /opt/pinsdaemon
