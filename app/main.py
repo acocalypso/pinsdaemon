@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -8,9 +9,18 @@ from .job_manager import job_manager, JobStatus
 
 app = FastAPI(title="System Update Daemon")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Configuration
 # On Windows dev environment, we might want to mock the command.
 # In production content, this will be the real path.
+# SCRIPT_PATH = os.getenv("UPDATE_SCRIPT_PATH", "/usr/local/bin/system-upgrade.sh")
 SCRIPT_PATH = os.getenv("UPDATE_SCRIPT_PATH", "/usr/local/bin/system-upgrade.sh")
 
 class UpgradeRequest(BaseModel):

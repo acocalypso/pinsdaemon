@@ -72,8 +72,9 @@ class JobManager:
                 line = await process.stdout.readline()
                 if not line:
                     break
-                decoded_line = line.decode().strip()
-                if decoded_line: # Only add non-empty lines if desired, or keep all
+                # robust decoding used
+                decoded_line = line.decode(errors='replace').strip()
+                if decoded_line: 
                     await job.add_log(decoded_line)
 
             await process.wait()
@@ -81,15 +82,17 @@ class JobManager:
             job.finished_at = time.time()
             job.status = JobStatus.SUCCESS if job.exit_code == 0 else JobStatus.FAILED
             
-            # Notify listeners that job is done? 
-            # We can send a special EOF token or just let them know via status check.
-            # But the WebSocket loop needs to know when to stop.
-            # We'll push None to indicate end of stream for the queues.
+            # Notify listeners that job is done
             for listener in job.listeners:
                 await listener.put(None)
 
         except Exception as e:
-            await job.add_log(f"Internal Error: {str(e)}")
+            import traceback
+            error_msg = f"Internal Error: {repr(e)}"
+            print(f"Job failed with exception: {traceback.format_exc()}") # Print to server console for debugging
+            await job.add_log(error_msg)
+            
+            job.exit_code = -1
             job.status = JobStatus.FAILED
             job.finished_at = time.time()
             for listener in job.listeners:
