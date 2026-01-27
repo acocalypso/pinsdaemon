@@ -16,6 +16,8 @@ chmod 440 /etc/sudoers.d/sysupdate-api
 # Ensure upgrade script is owned by root (Security)
 chown root:root /usr/local/bin/system-upgrade.sh
 chmod 755 /usr/local/bin/system-upgrade.sh
+chown root:root /usr/local/bin/manage-samba.sh
+chmod 755 /usr/local/bin/manage-samba.sh
 
 # Ensure service file is owned by root
 chown root:root /etc/systemd/system/sysupdate-api.service

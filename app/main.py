@@ -22,11 +22,16 @@ app.add_middleware(
 # In production content, this will be the real path.
 # SCRIPT_PATH = os.getenv("UPDATE_SCRIPT_PATH", "/usr/local/bin/system-upgrade.sh")
 SCRIPT_PATH = os.getenv("UPDATE_SCRIPT_PATH", "/usr/local/bin/system-upgrade.sh")
+SAMBA_SCRIPT_PATH = os.getenv("SAMBA_SCRIPT_PATH", "/usr/local/bin/manage-samba.sh")
 
 class UpgradeRequest(BaseModel):
     dryRun: bool = False
 
+class SambaRequest(BaseModel):
+    enable: bool
+
 class JobResponse(BaseModel):
+
     jobId: str
     status: JobStatus
     exitCode: Optional[int]
@@ -48,6 +53,26 @@ async def trigger_upgrade(request: UpgradeRequest):
         # Assuming the script takes --dry-run
         cmd.append("--dry-run")
 
+    job_id = await job_manager.start_job(cmd)
+    job = job_manager.get_job(job_id)
+    
+    return JobResponse(
+        jobId=job.id,
+        status=job.status,
+        exitCode=job.exit_code,
+        startedAt=job.created_at,
+        finishedAt=job.finished_at,
+        command=job.command
+    )
+
+@app.post("/samba", response_model=JobResponse, dependencies=[Depends(verify_token)])
+async def trigger_samba(request: SambaRequest):
+    """
+    Enable or Disable Samba (SMB) Share.
+    """
+    action = "enable" if request.enable else "disable"
+    cmd = ["sudo", "-n", SAMBA_SCRIPT_PATH, action]
+    
     job_id = await job_manager.start_job(cmd)
     job = job_manager.get_job(job_id)
     
