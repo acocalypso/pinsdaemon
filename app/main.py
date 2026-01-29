@@ -1,4 +1,6 @@
 import os
+import json
+import asyncio
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -23,12 +25,27 @@ app.add_middleware(
 # SCRIPT_PATH = os.getenv("UPDATE_SCRIPT_PATH", "/usr/local/bin/system-upgrade.sh")
 SCRIPT_PATH = os.getenv("UPDATE_SCRIPT_PATH", "/usr/local/bin/system-upgrade.sh")
 SAMBA_SCRIPT_PATH = os.getenv("SAMBA_SCRIPT_PATH", "/usr/local/bin/manage-samba.sh")
+WIFI_SCAN_SCRIPT_PATH = os.getenv("WIFI_SCAN_SCRIPT_PATH", os.path.join(os.path.dirname(__file__), "../scripts/wifi-scan.py"))
+WIFI_CONNECT_SCRIPT_PATH = os.getenv("WIFI_CONNECT_SCRIPT_PATH", "/usr/local/bin/wifi-connect.sh")
 
 class UpgradeRequest(BaseModel):
     dryRun: bool = False
 
 class SambaRequest(BaseModel):
     enable: bool
+
+class WifiNetwork(BaseModel):
+    mac: Optional[str] = None
+    ssid: Optional[str] = None
+    signal_strength: Optional[int] = None
+    quality: Optional[str] = None
+    encrypted: bool = False
+    channel: Optional[int] = None
+    frequency: Optional[float] = None
+
+class WifiConnectRequest(BaseModel):
+    ssid: str
+    password: Optional[str] = None
 
 class JobResponse(BaseModel):
 
@@ -147,3 +164,66 @@ async def websocket_logs(websocket: WebSocket, job_id: str):
             await websocket.close()
         except:
             pass
+
+@app.get("/wifi/scan", response_model=List[WifiNetwork], dependencies=[Depends(verify_token)])
+async def scan_wifi():
+    """
+    Scans for available WiFi networks.
+    """
+    if not os.path.exists(WIFI_SCAN_SCRIPT_PATH):
+         raise HTTPException(status_code=500, detail=f"WiFi scan script not found at {WIFI_SCAN_SCRIPT_PATH}")
+
+    try:
+        # Run the python script
+        cmd = ["python3", WIFI_SCAN_SCRIPT_PATH]
+        
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        
+        if proc.returncode != 0:
+            error_details = stderr.decode()
+            print(f"WiFi scan error: {error_details}")
+            # Try to return partial results or empty list? 
+            # Or raise error. Let's raise error for now.
+            raise Exception(f"Script failed with code {proc.returncode}: {error_details}")
+            
+        output = stdout.decode().strip()
+        if not output:
+             return []
+        return json.loads(output)
+        
+    except Exception as e:
+        print(f"WiFi scan failed: {e}")
+        # Return 500
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/wifi/connect", response_model=JobResponse, dependencies=[Depends(verify_token)])
+async def connect_wifi(request: WifiConnectRequest):
+    """
+    Connects to a WiFi network.
+    This starts a background job to run the connection script.
+    """
+    cmd = ["sudo", "-n", WIFI_CONNECT_SCRIPT_PATH, request.ssid, request.password or ""]
+    
+    # Check if script exists (only nice to have check, the job will fail if not found)
+    # But locally on windows it's different path.
+    
+    job_id = await job_manager.start_job(cmd)
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not created")
+        
+    return JobResponse(
+        jobId=job.id,
+        status=job.status,
+        exitCode=job.exit_code,
+        startedAt=job.created_at,
+        finishedAt=job.finished_at,
+        command=job.command.replace(request.password or "PASSWORD", "***") if request.password else job.command
+    )
+
+

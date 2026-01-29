@@ -18,6 +18,10 @@ chown root:root /usr/local/bin/system-upgrade.sh
 chmod 755 /usr/local/bin/system-upgrade.sh
 chown root:root /usr/local/bin/manage-samba.sh
 chmod 755 /usr/local/bin/manage-samba.sh
+chown root:root /usr/local/bin/wifi-connect.sh
+chmod 755 /usr/local/bin/wifi-connect.sh
+chown root:root /usr/local/bin/wifi-scan.py
+chmod 755 /usr/local/bin/wifi-scan.py
 
 # Ensure service file is owned by root
 chown root:root /etc/systemd/system/sysupdate-api.service
