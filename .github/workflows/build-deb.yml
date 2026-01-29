@@ -35,6 +35,8 @@ jobs:
         # Scripts
         cp scripts/system-upgrade.sh build/usr/local/bin/
         cp scripts/manage-samba.sh build/usr/local/bin/
+        cp scripts/wifi-connect.sh build/usr/local/bin/
+        cp scripts/wifi-scan.py build/usr/local/bin/
         
         # Systemd
         cp systemd/sysupdate-api.service build/etc/systemd/system/
