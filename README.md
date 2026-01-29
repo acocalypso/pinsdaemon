@@ -1,115 +1,170 @@
-# System Upgrade API Daemon
+﻿# PINS Daemon (System Management API)
 
-A minimal Python-based daemon that exposes a secured HTTP endpoint to trigger system updates (`apt update && apt upgrade`) and stream the logs via WebSockets.
+A lightweight, secure, Python-based daemon designed for the Raspberry Pi to expose system management capabilities via a REST API. It handles system updates, Samba share management, and Wi-Fi configuration.
 
 ## Features
 
-- **Platform Agnostic**: Runs on ARM64 (Raspberry Pi/Jetson) and x86_64.
-- **Secure**:
-  - Runs as a dedicated restricted user.
-  - Hard-coded command execution (no arbitrary shell).
-  - Uses `sudoers` for fine-grained privilege delegation.
-  - Bearer token authentication.
-- **Real-time Feedback**: WebSocket endpoint streams standard output and error of the update command.
+- **System Updates**: Trigger `apt update && apt upgrade` remotely.
+- **Samba Management**: Enable or disable SMB shares for file access.
+- **Wi-Fi Management**: Scan for available networks and connect to them securely.
+- **Secure Architecture**:
+  - Runs as a restricted user (`sysupdate-api`).
+  - No shell injection: Commands are hard-coded or strictly parameterized.
+  - Privileges delegated via `sudoers` (no root API access).
+  - Bearer Token authentication.
+- **Real-time Feedback**: WebSocket endpoint for streaming command execution logs.
 
-## Installation
+## High-Level Design
 
-### 1. Prerequisites
-
-- Python 3.9+ installed.
-- `pip` and `venv` available (usually `apt install python3-venv`).
-
-### 2. User Setup
-
-Create a dedicated user for the service:
-
-```bash
-sudo useradd -r -s /bin/false sysupdate-api
+```mermaid
+graph TD
+    Client[API Client] -->|HTTP/WS + Token| API[FastAPI Daemon]
+    
+    subgraph "System Service (sysupdate-api)"
+        API
+        JobMgr[Job Manager]
+    end
+    
+    API -->|Async| JobMgr
+    
+    subgraph "Privileged Operations (sudo)"
+        Script1[system-upgrade.sh]
+        Script2[manage-samba.sh]
+        Script3[wifi-connect.sh]
+        Script4[iwlist / nmcli]
+    end
+    
+    JobMgr -->|sudo -n| Script1
+    JobMgr -->|sudo -n| Script2
+    JobMgr -->|sudo -n| Script3
+    
+    API -->|python3| Script5[wifi-scan.py]
+    Script5 -->|sudo| Script4
 ```
 
-### 3. Deploy Code
+The daemon provides a facade over system shell scripts. Long-running tasks (like upgrades or Wi-Fi connections) are executed asynchronously as "Jobs". Clients receive a `Job ID` immediately and can use it to poll status or stream logs via WebSockets.
 
-Clone this repository or copy files to `/opt/pinsdeamon` (or your preferred location).
+## API Endpoints
 
-```bash
-sudo mkdir -p /opt/pinsdeamon
-sudo cp -r . /opt/pinsdeamon/
-sudo chown -R sysupdate-api:sysupdate-api /opt/pinsdeamon
-```
+All HTTP endpoints require the `Authorization: Bearer <token>` header.
 
-### 4. Install Dependencies
+### 1. System Upgrade
 
-Switch to the service user (or install system-wide if preferred, but venv is recommended):
+Triggers a system package upgrade.
 
-```bash
-cd /opt/pinsdeamon
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+- **URL**: `POST /upgrade`
+- **Body**:
+  ```json
+  {
+    "dryRun": false
+  }
+  ```
+- **Response**: `JobResponse` object.
 
-### 5. Setup the Upgrade Script
+### 2. Samba Management
 
-Copy the upgrade script to a secure location and make it executable:
+Enable or disable the file sharing service.
 
-```bash
-sudo cp scripts/system-upgrade.sh /usr/local/bin/system-upgrade.sh
-sudo chmod +x /usr/local/bin/system-upgrade.sh
-```
+- **URL**: `POST /samba`
+- **Body**:
+  ```json
+  {
+    "enable": true
+  }
+  ```
+- **Response**: `JobResponse` object.
 
-### 6. Configure Sudoers
+### 3. Wi-Fi Scan
 
-Allow the `sysupdate-api` user to run **only** this specific script as root without a password.
+Get a list of available Wi-Fi networks.
 
-Create `/etc/sudoers.d/sysupdate-api`:
+- **URL**: `GET /wifi/scan`
+- **Response**: List of network objects.
+  ```json
+  [
+    {
+      "ssid": "MyWiFi",
+      "signal_strength": -55,
+      "quality": "60/70",
+      "encrypted": true,
+      "channel": 6,
+      "frequency": 2.437,
+      "mac": "00:11:22:33:44:55"
+    }
+  ]
+  ```
 
-```bash
-sysupdate-api ALL=(root) NOPASSWD: /usr/local/bin/system-upgrade.sh
-```
+### 4. Wi-Fi Connect
 
-Ensure correct permissions:
+Connect to a specific Wi-Fi network. If connection fails, it automatically reverts to Hotspot mode.
 
-```bash
-sudo chmod 440 /etc/sudoers.d/sysupdate-api
-```
+- **URL**: `POST /wifi/connect`
+- **Body**:
+  ```json
+  {
+    "ssid": "MyWiFi",
+    "password": "secretpassword"
+  }
+  ```
+- **Response**: `JobResponse` object.
 
-### 7. Setup Systemd Service
+### 5. Job Status
 
-Edit `systemd/sysupdate-api.service` to match your paths and set a secure `API_TOKEN`.
+Check the status of a background job.
 
-Then install the service:
+- **URL**: `GET /jobs/{jobId}`
+- **Response**: `JobResponse` object.
 
-```bash
-sudo cp systemd/sysupdate-api.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable sysupdate-api
-sudo systemctl start sysupdate-api
-```
+### 6. Job Logs (WebSocket)
 
-## Usage
+Stream live logs from a running job.
 
-### Trigger Update
+- **URL**: `ws://<host>:8000/logs/{jobId}?token=<token>`
+- **Output**: Real-time text stream of stdout/stderr.
 
-**POST** `/upgrade`
-Headers: `Authorization: Bearer <your-token>`
-Body: `{"dryRun": false}`
+---
 
-Response:
+## Data Models
+
+**JobResponse**
 ```json
 {
-  "jobId": "e3b0c442-...",
-  "status": "started",
-  ...
+  "jobId": "uuid-string",
+  "status": "started|running|success|failed",
+  "exitCode": null,
+  "startedAt": 1678900000.0,
+  "finishedAt": null,
+  "command": "sudo ..." 
 }
 ```
 
-### Check Status
+## Installation
 
-**GET** `/jobs/{jobId}`
-Headers: `Authorization: Bearer <your-token>`
+### From Debian Package (Recommended on Pi)
 
-### Stream Logs
+1.  Download the latest `.deb` release.
+2.  Install:
+    ```bash
+    sudo apt update
+    sudo apt install ./pinsdaemon_*_arm64.deb
+    ```
+3.  The service `sysupdate-api` starts automatically.
 
-**WebSocket** `/logs/{jobId}?token=<your-token>`
+### Manual / Development Setup
 
-Connect via a WebSocket client. You will receive existing logs immediately, followed by live updates until the process exits.
+1.  **Prerequisites**: Python 3.9+, `venv`.
+2.  **User Setup**:
+    ```bash
+    sudo useradd -r -s /bin/false sysupdate-api
+    ```
+3.  **Deploy Code**: Copy `app/` and `scripts/` to `/opt/pinsdaemon`.
+4.  **Install Deps**:
+    ```bash
+    python3 -m venv venv
+    ./venv/bin/pip install -r requirements.txt
+    ```
+5.  **Configure Sudoers**: Copy `packaging/sudoers` content to `/etc/sudoers.d/sysupdate-api`.
+6.  **Run**:
+    ```bash
+    sudo /opt/pinsdaemon/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ```
