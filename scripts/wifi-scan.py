@@ -15,12 +15,20 @@ def get_wifi_networks():
     # Fallback to iwlist (more reliable for raw scanning on Pi)
     # The user explicitly uses iwlist, so we prioritize it or use it exclusively if reliable.
     try:
-        cmd = ["sudo", "iwlist", "wlan0", "scan"]
+        # Determine iwlist path
+        iwlist_path = "iwlist"
+        if shutil.which("/sbin/iwlist"):
+            iwlist_path = "/sbin/iwlist"
+        elif shutil.which("/usr/sbin/iwlist"):
+            iwlist_path = "/usr/sbin/iwlist"
+            
+        cmd = ["sudo", iwlist_path, "wlan0", "scan"]
         result = subprocess.run(cmd, capture_output=True, text=True)
         
         if result.returncode != 0:
             # Try just 'iwlist scan' (might find other interfaces)
-            cmd = ["sudo", "iwlist", "scan"]
+            cmd = ["sudo", iwlist_path, "scan"]
+
             result = subprocess.run(cmd, capture_output=True, text=True)
             
         if result.returncode == 0:

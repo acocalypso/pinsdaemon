@@ -25,8 +25,17 @@ app.add_middleware(
 # SCRIPT_PATH = os.getenv("UPDATE_SCRIPT_PATH", "/usr/local/bin/system-upgrade.sh")
 SCRIPT_PATH = os.getenv("UPDATE_SCRIPT_PATH", "/usr/local/bin/system-upgrade.sh")
 SAMBA_SCRIPT_PATH = os.getenv("SAMBA_SCRIPT_PATH", "/usr/local/bin/manage-samba.sh")
-WIFI_SCAN_SCRIPT_PATH = os.getenv("WIFI_SCAN_SCRIPT_PATH", os.path.join(os.path.dirname(__file__), "../scripts/wifi-scan.py"))
+
+# Determine default path for wifi-scan.py
+# In production, it's /usr/local/bin/wifi-scan.py
+# In dev (Windows/local), it might be relative.
+DEFAULT_WIFI_SCAN = "/usr/local/bin/wifi-scan.py"
+if not os.path.exists(DEFAULT_WIFI_SCAN):
+    DEFAULT_WIFI_SCAN = os.path.join(os.path.dirname(__file__), "../scripts/wifi-scan.py")
+
+WIFI_SCAN_SCRIPT_PATH = os.getenv("WIFI_SCAN_SCRIPT_PATH", DEFAULT_WIFI_SCAN)
 WIFI_CONNECT_SCRIPT_PATH = os.getenv("WIFI_CONNECT_SCRIPT_PATH", "/usr/local/bin/wifi-connect.sh")
+
 
 class UpgradeRequest(BaseModel):
     dryRun: bool = False
@@ -197,9 +206,12 @@ async def scan_wifi():
         return json.loads(output)
         
     except Exception as e:
+        import traceback
+        traceback.print_exc() # Print full stack trace to logs
         print(f"WiFi scan failed: {e}")
         # Return 500
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/wifi/connect", response_model=JobResponse, dependencies=[Depends(verify_token)])
 async def connect_wifi(request: WifiConnectRequest):

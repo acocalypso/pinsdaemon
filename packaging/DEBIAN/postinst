@@ -14,14 +14,25 @@ chown root:root /etc/sudoers.d/sysupdate-api
 chmod 440 /etc/sudoers.d/sysupdate-api
 
 # Ensure upgrade script is owned by root (Security)
-chown root:root /usr/local/bin/system-upgrade.sh
-chmod 755 /usr/local/bin/system-upgrade.sh
-chown root:root /usr/local/bin/manage-samba.sh
-chmod 755 /usr/local/bin/manage-samba.sh
-chown root:root /usr/local/bin/wifi-connect.sh
-chmod 755 /usr/local/bin/wifi-connect.sh
-chown root:root /usr/local/bin/wifi-scan.py
-chmod 755 /usr/local/bin/wifi-scan.py
+if [ -f "/usr/local/bin/system-upgrade.sh" ]; then
+    chown root:root /usr/local/bin/system-upgrade.sh
+    chmod 755 /usr/local/bin/system-upgrade.sh
+fi
+
+if [ -f "/usr/local/bin/manage-samba.sh" ]; then
+    chown root:root /usr/local/bin/manage-samba.sh
+    chmod 755 /usr/local/bin/manage-samba.sh
+fi
+
+if [ -f "/usr/local/bin/wifi-connect.sh" ]; then
+    chown root:root /usr/local/bin/wifi-connect.sh
+    chmod 755 /usr/local/bin/wifi-connect.sh
+fi
+
+if [ -f "/usr/local/bin/wifi-scan.py" ]; then
+    chown root:root /usr/local/bin/wifi-scan.py
+    chmod 755 /usr/local/bin/wifi-scan.py
+fi
 
 # Ensure service file is owned by root
 chown root:root /etc/systemd/system/sysupdate-api.service
