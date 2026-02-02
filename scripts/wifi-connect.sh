@@ -61,7 +61,14 @@ if [ -z "$SSID" ]; then
     exit 1
 fi
 
-echo "Configuring WiFi for SSID: $SSID"
+echo "Preparing to connect to $SSID..."
+
+# 0. Force a rescan to ensure we know the security type
+# We run this in the background/wait briefly or just run it. 
+# Sometimes rescan fails if busy, we ignore error.
+sudo nmcli device wifi rescan 2>/dev/null || true
+# Give it a moment to populate
+sleep 3
 
 # 1. Remove existing hotspot connection if any
 # Find any connections named "hotspot-ap" or starting with "Hotspot" (default nmcli naming)
@@ -78,7 +85,14 @@ if [ -n "$existing_hotspots" ]; then
     done <<< "$existing_hotspots"
 fi
 
-# 2. Connect to the new wifi network
+# 2. Clean up any EXISTING profiles for the target SSID
+# This ensures we don't try to use a broken/stale profile associated with this SSID.
+if nmcli connection show "$SSID" >/dev/null 2>&1; then
+    echo "Removing stale connection profile for $SSID..."
+    nmcli connection delete "$SSID" || true
+fi
+
+# 3. Connect to the new wifi network
 echo "Connecting to $SSID..."
 
 CONNECT_SUCCESS=0
@@ -95,3 +109,10 @@ if [ $CONNECT_SUCCESS -ne 0 ]; then
 fi
 
 echo "Successfully connected to $SSID."
+# Optional: Disable powersave on client connection too
+CURRENT_CONN=$(nmcli -t -f NAME connection show --active | head -n1)
+if [ -n "$CURRENT_CONN" ]; then
+    nmcli connection modify "$CURRENT_CONN" 802-11-wireless.powersave 2 || true
+fi
+exit 0
+
