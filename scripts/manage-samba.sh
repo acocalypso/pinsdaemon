@@ -80,10 +80,12 @@ EOF
     fi
 
     if grep -qF "$MARKER_START" "$CONFIG_FILE"; then
-        echo "Configuration block already present in $CONFIG_FILE."
-    else
-        echo "Appending configuration to $CONFIG_FILE..."
-        cat >> "$CONFIG_FILE" <<EOF
+        echo "Updating configuration block in $CONFIG_FILE..."
+        sed -i "/$MARKER_START/,/$MARKER_END/d" "$CONFIG_FILE"
+    fi
+
+    echo "Appending configuration to $CONFIG_FILE..."
+    cat >> "$CONFIG_FILE" <<EOF
 
 $MARKER_START
 [$SHARE_NAME]
@@ -109,7 +111,6 @@ $MARKER_START
    directory mask = 0775
 $MARKER_END
 EOF
-    fi
 
     # 4. Restart service
     echo "Restarting Samba services..."
