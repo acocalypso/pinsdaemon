@@ -4,6 +4,8 @@ set -e
 ACTION=$1
 SHARE_PATH="/home/pi/Documents"
 SHARE_NAME="Documents"
+NINA_SHARE_PATH="/home/pi/.local/share/NINA"
+NINA_SHARE_NAME="NINA"
 CONFIG_FILE="/etc/samba/smb.conf"
 # Helper markers to identify our block in smb.conf
 MARKER_START="# BEGIN PINS_SHARE - Do not edit manually"
@@ -39,6 +41,12 @@ if [[ "$ACTION" == "enable" ]]; then
         echo "Creating directory $SHARE_PATH..."
         mkdir -p "$SHARE_PATH"
         chown pi:pi "$SHARE_PATH" || echo "Warning: Could not set owner"
+    fi
+
+    if [ ! -d "$NINA_SHARE_PATH" ]; then
+        echo "Creating directory $NINA_SHARE_PATH..."
+        mkdir -p "$NINA_SHARE_PATH"
+        chown pi:pi "$NINA_SHARE_PATH" || echo "Warning: Could not set owner"
     fi
 
     # 2.5 Ensure Global Settings for Guest Access
@@ -88,6 +96,17 @@ $MARKER_START
    force user = pi
    create mask = 0775
    directory mask = 0775
+
+[$NINA_SHARE_NAME]
+   comment = PINS Shared NINA Data
+   path = $NINA_SHARE_PATH
+   browseable = yes
+   writeable = yes
+   guest ok = yes
+   read only = no
+   force user = pi
+   create mask = 0775
+   directory mask = 0775
 $MARKER_END
 EOF
     fi
@@ -98,9 +117,9 @@ EOF
     systemctl enable smbd nmbd || true
     systemctl restart smbd nmbd
     
-    echo "Samba Share enabled successfully."
-    echo "Windows: \\\\<IP>\\$SHARE_NAME"
-    echo "Mac/Linux: smb://<IP>/$SHARE_NAME"
+    echo "Samba Shares enabled successfully."
+    echo "Windows: \\\\<IP>\\$SHARE_NAME and \\\\<IP>\\$NINA_SHARE_NAME"
+    echo "Mac/Linux: smb://<IP>/$SHARE_NAME and smb://<IP>/$NINA_SHARE_NAME"
 
 elif [[ "$ACTION" == "disable" ]]; then
     echo "Disabling Samba share..."
