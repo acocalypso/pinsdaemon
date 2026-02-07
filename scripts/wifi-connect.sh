@@ -110,7 +110,8 @@ fi
 
 echo "Successfully connected to $SSID."
 # Optional: Disable powersave on client connection too
-CURRENT_CONN=$(nmcli -t -f NAME connection show --active | head -n1)
+# Filter specifically for wireless connections to avoid configuring ethernet connections
+CURRENT_CONN=$(nmcli -t -f NAME,TYPE connection show --active | grep ":802-11-wireless" | cut -d: -f1 | head -n1)
 if [ -n "$CURRENT_CONN" ]; then
     nmcli connection modify "$CURRENT_CONN" 802-11-wireless.powersave 2 || true
 fi
