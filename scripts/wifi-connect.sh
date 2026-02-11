@@ -86,10 +86,13 @@ if [ -n "$existing_hotspots" ]; then
 fi
 
 # 2. Clean up any EXISTING profiles for the target SSID
-# This ensures we don't try to use a broken/stale profile associated with this SSID.
-if nmcli connection show "$SSID" >/dev/null 2>&1; then
-    echo "Removing stale connection profile for $SSID..."
-    nmcli connection delete "$SSID" || true
+# If we have a new password, remove old connection to force update.
+# If no password is provided, we keep existing profile (if any) to reuse saved credentials.
+if [ -n "$PASSWORD" ]; then
+    if nmcli connection show "$SSID" >/dev/null 2>&1; then
+        echo "Removing stale connection profile for $SSID..."
+        nmcli connection delete "$SSID" || true
+    fi
 fi
 
 # 3. Connect to the new wifi network
@@ -97,8 +100,10 @@ echo "Connecting to $SSID..."
 
 CONNECT_SUCCESS=0
 if [ -n "$PASSWORD" ]; then
-    nmcli device wifi connect "$SSID" password "$PASSWORD" || CONNECT_SUCCESS=1
+    # Use explicit connection name to prevent duplicates and ensure settings apply to the right profile
+    nmcli device wifi connect "$SSID" password "$PASSWORD" name "$SSID" || CONNECT_SUCCESS=1
 else
+    # If no password provided, try connecting. This works for Open networks or using existing saved profiles.
     nmcli device wifi connect "$SSID" || CONNECT_SUCCESS=1
 fi
 
