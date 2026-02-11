@@ -3,4 +3,14 @@ sysupdate-api ALL=(root) NOPASSWD: /usr/local/bin/manage-samba.sh
 sysupdate-api ALL=(root) NOPASSWD: /sbin/iwlist
 sysupdate-api ALL=(root) NOPASSWD: /usr/sbin/iwlist
 sysupdate-api ALL=(root) NOPASSWD: /usr/local/bin/wifi-connect.sh
+sysupdate-api ALL=(root) NOPASSWD: /usr/bin/systemctl enable --now phd2
+sysupdate-api ALL=(root) NOPASSWD: /usr/bin/systemctl disable --now phd2
+sysupdate-api ALL=(root) NOPASSWD: /usr/bin/systemctl start phd2
+sysupdate-api ALL=(root) NOPASSWD: /usr/bin/systemctl stop phd2
+sysupdate-api ALL=(root) NOPASSWD: /usr/bin/systemctl restart phd2
+sysupdate-api ALL=(root) NOPASSWD: /bin/systemctl enable --now phd2
+sysupdate-api ALL=(root) NOPASSWD: /bin/systemctl disable --now phd2
+sysupdate-api ALL=(root) NOPASSWD: /bin/systemctl start phd2
+sysupdate-api ALL=(root) NOPASSWD: /bin/systemctl stop phd2
+sysupdate-api ALL=(root) NOPASSWD: /bin/systemctl restart phd2
 
