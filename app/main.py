@@ -43,6 +43,16 @@ class UpgradeRequest(BaseModel):
 class SambaRequest(BaseModel):
     enable: bool
 
+class Phd2Request(BaseModel):
+    enable: bool
+
+class SambaStatus(BaseModel):
+    enabled: bool
+
+class Phd2Status(BaseModel):
+    enabled: bool
+    running: bool
+
 class WifiNetwork(BaseModel):
     mac: Optional[str] = None
     ssid: Optional[str] = None
@@ -91,6 +101,30 @@ async def trigger_upgrade(request: UpgradeRequest):
         command=job.command
     )
 
+
+@app.get("/samba", response_model=SambaStatus, dependencies=[Depends(verify_token)])
+async def get_samba_status():
+    """
+    Check if Samba is enabled.
+    """
+    try:
+        # Run the manage-samba.sh script with 'status' argument
+        cmd = ["sudo", "-n", SAMBA_SCRIPT_PATH, "status"]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        output = stdout.decode().strip()
+        
+        return SambaStatus(enabled=(output == "enabled"))
+    except Exception as e:
+        # Log error? Return false?
+        print(f"Error checking samba status: {e}")
+        return SambaStatus(enabled=False)
+
+
 @app.post("/samba", response_model=JobResponse, dependencies=[Depends(verify_token)])
 async def trigger_samba(request: SambaRequest):
     """
@@ -110,6 +144,55 @@ async def trigger_samba(request: SambaRequest):
         finishedAt=job.finished_at,
         command=job.command
     )
+
+
+@app.get("/phd2", response_model=Phd2Status, dependencies=[Depends(verify_token)])
+async def get_phd2_status():
+    """
+    Check if PHD2 service is running and enabled.
+    """
+    async def check_cmd(args):
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await proc.wait()
+            return proc.returncode == 0
+        except:
+            return False
+
+    is_active = await check_cmd(["systemctl", "is-active", "phd2"])
+    is_enabled = await check_cmd(["systemctl", "is-enabled", "phd2"])
+    
+    return Phd2Status(enabled=is_enabled, running=is_active)
+
+
+@app.post("/phd2", response_model=JobResponse, dependencies=[Depends(verify_token)])
+async def manage_phd2(request: Phd2Request):
+    """
+    Enable/Start or Disable/Stop PHD2 service.
+    """
+    # Use --now to start/enable or stop/disable immediately
+    action = "enable" if request.enable else "disable"
+    # Ensure checking/enabling logic is correct:
+    # enable --now: enables and starts (if not running)
+    # disable --now: disables and stops (if running)
+    cmd = ["sudo", "-n", "systemctl", action, "--now", "phd2"]
+    
+    job_id = await job_manager.start_job(cmd)
+    job = job_manager.get_job(job_id)
+    
+    return JobResponse(
+        jobId=job.id,
+        status=job.status,
+        exitCode=job.exit_code,
+        startedAt=job.created_at,
+        finishedAt=job.finished_at,
+        command=job.command
+    )
+
 
 @app.get("/jobs/{job_id}", response_model=JobResponse, dependencies=[Depends(verify_token)])
 async def get_job_status(job_id: str):

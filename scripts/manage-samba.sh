@@ -137,7 +137,14 @@ elif [[ "$ACTION" == "disable" ]]; then
         echo "No configuration block found to remove."
     fi
 
+elif [[ "$ACTION" == "status" ]]; then
+    if grep -qF "$MARKER_START" "$CONFIG_FILE"; then
+        echo "enabled"
+    else
+        echo "disabled"
+    fi
+
 else
-    echo "Usage: $0 {enable|disable}"
+    echo "Usage: $0 {enable|disable|status}"
     exit 1
 fi
