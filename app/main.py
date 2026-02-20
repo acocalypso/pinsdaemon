@@ -1,6 +1,7 @@
 import os
 import json
 import asyncio
+from datetime import datetime
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -65,6 +66,9 @@ class WifiNetwork(BaseModel):
 class WifiConnectRequest(BaseModel):
     ssid: str
     password: Optional[str] = None
+
+class SystemTimeRequest(BaseModel):
+    timestamp: float
 
 class JobResponse(BaseModel):
 
@@ -319,6 +323,49 @@ async def connect_wifi(request: WifiConnectRequest):
         startedAt=job.created_at,
         finishedAt=job.finished_at,
         command=job.command.replace(request.password or "PASSWORD", "***") if request.password else job.command
+    )
+
+
+class SystemTimeResponse(BaseModel):
+    timestamp: float
+    iso: str
+
+
+@app.get("/system/time", response_model=SystemTimeResponse, dependencies=[Depends(verify_token)])
+async def get_system_time():
+    """
+    Get the current system time.
+    """
+    now = datetime.now()
+    return SystemTimeResponse(
+        timestamp=now.timestamp(),
+        iso=now.isoformat()
+    )
+
+
+@app.post("/system/time", response_model=JobResponse, dependencies=[Depends(verify_token)])
+async def set_system_time(request: SystemTimeRequest):
+    """
+    Sets the system time using timedatectl (requires sudo).
+    The timestamp should be a float (Unix epoch).
+    """
+    # Convert timestamp to format expected by timedatectl: "YYYY-MM-DD HH:MM:SS"
+    dt = datetime.fromtimestamp(request.timestamp)
+    time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+    
+    # We use sudo timedatectl set-time "..."
+    cmd = ["sudo", "-n", "timedatectl", "set-time", time_str]
+    
+    job_id = await job_manager.start_job(cmd)
+    job = job_manager.get_job(job_id)
+
+    return JobResponse(
+        jobId=job.id,
+        status=job.status,
+        exitCode=job.exit_code,
+        startedAt=job.created_at,
+        finishedAt=job.finished_at,
+        command=job.command
     )
 
 
