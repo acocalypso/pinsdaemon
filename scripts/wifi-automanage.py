@@ -49,24 +49,12 @@ def scan_networks(ssid):
 def connect_to_wifi(ssid, band=None):
     print(f"Attempting to connect to {ssid} (Band: {band})...")
     try:
-        # Check if we have a connection profile for this SSID
-        # Or call wifi-connect.sh script to enforce band?
-        # The internal logic of wifi-connect.sh tries to connect and falls back to hotspot.
-        # It's better to use wifi-connect.sh here too if we want band enforcement,
-        # because 'nmcli connection up id <SSID>' assumes the profile is already correct.
         
-        # If band is set, we need to ensure the profile respects it.
-        # But we don't have the password here.
-        # If we use wifi-connect.sh without password, does it work for existing profiles?
-        # Yes, if no password provided, it uses `nmcli device wifi connect "$SSID" || ...`
-        
-        # So we can pass the band to wifi-connect.sh
-        
+        # We need to explicitly pass the empty password argument so positional args are correct
+        # wifi-connect.sh $1=SSID $2=PASSWORD $3=BAND
         args = ["sudo", WIFI_CONNECT_SCRIPT, ssid, "", band if band else ""]
         
-        # Do not filter empty args as positional arguments matter for wifi-connect.sh
-        # args = [a for a in args if a]
-        
+
         result = subprocess.run(args)
         return result.returncode == 0
             
