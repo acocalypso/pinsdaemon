@@ -3,6 +3,7 @@
 
 SSID="$1"
 PASSWORD="$2"
+BAND="$3" # "a" for 5GHz, "bg" for 2.4GHz
 
 # Support for explicit hotspot mode
 if [ "$1" == "--hotspot" ]; then
@@ -112,13 +113,22 @@ fi
 echo "Connecting to $SSID..."
 
 CONNECT_SUCCESS=0
+CONNECT_CMD="nmcli device wifi connect '$SSID'"
+
 if [ -n "$PASSWORD" ]; then
-    # Use explicit connection name to prevent duplicates and ensure settings apply to the right profile
-    nmcli device wifi connect "$SSID" password "$PASSWORD" name "$SSID" || CONNECT_SUCCESS=1
-else
-    # If no password provided, try connecting. This works for Open networks or using existing saved profiles.
-    nmcli device wifi connect "$SSID" || CONNECT_SUCCESS=1
+    CONNECT_CMD="$CONNECT_CMD password '$PASSWORD' name '$SSID'"
 fi
+
+if [ -n "$BAND" ]; then
+    # Append band property
+    # Since we can't easily append property with key=val syntax in command string construction without care
+    # We will use eval or just branch logic.
+    echo "Using band: $BAND"
+    CONNECT_CMD="$CONNECT_CMD wifi.band $BAND"
+fi
+
+# Execute connection command
+eval $CONNECT_CMD || CONNECT_SUCCESS=1
 
 if [ $CONNECT_SUCCESS -ne 0 ]; then
     echo "Failed to connect to $SSID."

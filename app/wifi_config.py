@@ -15,12 +15,13 @@ def load_wifi_config() -> Dict[str, Any]:
         with open(CONFIG_FILE, 'r') as f:
             return json.load(f)
     except Exception:
-        return {"auto_connect": False, "ssid": None}
+        return {"auto_connect": False, "ssid": None, "band": None}
 
-def save_wifi_config(ssid: Optional[str], auto_connect: bool):
+def save_wifi_config(ssid: Optional[str], auto_connect: bool, band: Optional[str] = None):
     config = {
         "ssid": ssid,
-        "auto_connect": auto_connect
+        "auto_connect": auto_connect,
+        "band": band
     }
     with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f, indent=4)

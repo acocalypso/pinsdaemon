@@ -68,10 +68,12 @@ class WifiConnectRequest(BaseModel):
     ssid: str
     password: Optional[str] = None
     auto_connect: Optional[bool] = False
+    band: Optional[str] = None # "2.4GHz" or "5GHz"
 
 class WifiAutoConnectRequest(BaseModel):
     ssid: Optional[str] = None
     auto_connect: bool
+    band: Optional[str] = None # "2.4GHz" or "5GHz" where bg=2.4 and a=5
 
 class SystemTimeRequest(BaseModel):
     timestamp: float
@@ -312,11 +314,23 @@ async def connect_wifi(request: WifiConnectRequest):
     Connects to a WiFi network.
     This starts a background job to run the connection script.
     """
+    cmd = ["sudo", "-n", WIFI_CONNECT_SCRIPT_PATH, request.ssid, request.password or ""]
+    
+    # Translate band to nmcli format if present
+    wifi_band = ""
+    if request.band == "2.4GHz":
+        wifi_band = "bg"
+    elif request.band == "5GHz":
+        wifi_band = "a"
+        
+    if wifi_band:
+        cmd.append(wifi_band)
+
+    # Note: connect script now handles 3rd argument as BAND
+    
     # If auto_connect is requested, save the config immediately
     if request.auto_connect:
-        save_wifi_config(request.ssid, True)
-    
-    cmd = ["sudo", "-n", WIFI_CONNECT_SCRIPT_PATH, request.ssid, request.password or ""]
+        save_wifi_config(request.ssid, True, request.band)
     
     # Check if script exists (only nice to have check, the job will fail if not found)
     # But locally on windows it's different path.
@@ -349,8 +363,8 @@ async def set_wifi_auto_connect(config: WifiAutoConnectRequest):
     if config.auto_connect and not new_ssid:
         raise HTTPException(status_code=400, detail="SSID is required when enabling auto-connect")
         
-    save_wifi_config(new_ssid, config.auto_connect)
-    return {"status": "success", "message": "Wifi auto-connect configuration saved", "config": {"ssid": new_ssid, "auto_connect": config.auto_connect}}
+    save_wifi_config(new_ssid, config.auto_connect, config.band)
+    return {"status": "success", "message": "Wifi auto-connect configuration saved", "config": {"ssid": new_ssid, "auto_connect": config.auto_connect, "band": config.band}}
 
 
 class SystemTimeResponse(BaseModel):
