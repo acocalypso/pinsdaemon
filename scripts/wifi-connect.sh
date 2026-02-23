@@ -30,10 +30,7 @@ enable_hotspot() {
     echo "Creating hotspot: $HOTSPOT_SSID"
 
     # Create new hotspot with dynamic SSID
-    # Explicitly use 'hotspot-ap' as connection name to match user expectation if possible, 
-    # but nmcli syntax varies.
-    # Note: 'nmcli device wifi hotspot' creates a profile. 
-    # We let nmcli decide the name, then find it, to be robust.
+
     if nmcli device wifi hotspot ifname wlan0 ssid "$HOTSPOT_SSID" password "$HOTSPOT_PASSWORD"; then
         
         
@@ -108,15 +105,31 @@ echo "Connecting to $SSID..."
 
 CONNECT_SUCCESS=0
 
-# Use array for command construction to handle spaces and quotes safely
-CMD=("nmcli" "device" "wifi" "connect" "$SSID")
-
-if [ -n "$PASSWORD" ]; then
-    CMD+=("password" "$PASSWORD" "name" "$SSID")
+# Logic to prefer existing connection if no password provided
+if [ -z "$PASSWORD" ] && nmcli connection show "$SSID" >/dev/null 2>&1; then
+    echo "Found existing profile for $SSID. Attempting to bring it up..."
+    if nmcli connection up "$SSID"; then
+        CONNECT_SUCCESS=0
+    else
+        echo "Failed to bring up existing connection. Retrying with device connect..."
+        CONNECT_SUCCESS=1
+    fi
+else
+    CONNECT_SUCCESS=1 # Treat as not yet connected so we fall through to device connect logic if appropriate
 fi
 
-# Execute connection command
-"${CMD[@]}" || CONNECT_SUCCESS=1
+# If connection up failed or we have a password (forcing new connection logic)
+if [ $CONNECT_SUCCESS -ne 0 ]; then
+    # Use array for command construction to handle spaces and quotes safely
+    CMD=("nmcli" "device" "wifi" "connect" "$SSID")
+
+    if [ -n "$PASSWORD" ]; then
+        CMD=("nmcli" "device" "wifi" "connect" "$SSID" "password" "$PASSWORD" "name" "$SSID")
+    fi
+
+    # Execute connection command
+    "${CMD[@]}" || CONNECT_SUCCESS=1
+fi
 
 if [ $CONNECT_SUCCESS -eq 0 ] && [ -n "$BAND" ]; then
     echo "Applying band preference: $BAND"
