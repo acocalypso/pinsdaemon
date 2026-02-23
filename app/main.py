@@ -9,6 +9,7 @@ from typing import Optional, List
 
 from .auth import verify_token
 from .job_manager import job_manager, JobStatus
+from .wifi_config import load_wifi_config, save_wifi_config
 
 app = FastAPI(title="System Update Daemon")
 
@@ -66,6 +67,10 @@ class WifiNetwork(BaseModel):
 class WifiConnectRequest(BaseModel):
     ssid: str
     password: Optional[str] = None
+
+class WifiAutoConnectRequest(BaseModel):
+    ssid: Optional[str] = None
+    auto_connect: bool
 
 class SystemTimeRequest(BaseModel):
     timestamp: float
@@ -324,6 +329,23 @@ async def connect_wifi(request: WifiConnectRequest):
         finishedAt=job.finished_at,
         command=job.command.replace(request.password or "PASSWORD", "***") if request.password else job.command
     )
+
+
+@app.get("/wifi/auto-connect", dependencies=[Depends(verify_token)])
+async def get_wifi_auto_connect():
+    return load_wifi_config()
+
+
+@app.post("/wifi/auto-connect", dependencies=[Depends(verify_token)])
+async def set_wifi_auto_connect(config: WifiAutoConnectRequest):
+    current = load_wifi_config()
+    new_ssid = config.ssid if config.ssid else current.get("ssid")
+    
+    if config.auto_connect and not new_ssid:
+        raise HTTPException(status_code=400, detail="SSID is required when enabling auto-connect")
+        
+    save_wifi_config(new_ssid, config.auto_connect)
+    return {"status": "success", "message": "Wifi auto-connect configuration saved", "config": {"ssid": new_ssid, "auto_connect": config.auto_connect}}
 
 
 class SystemTimeResponse(BaseModel):

@@ -4,8 +4,13 @@
 SSID="$1"
 PASSWORD="$2"
 
+# Support for explicit hotspot mode
+if [ "$1" == "--hotspot" ]; then
+    FORCE_HOTSPOT=true
+fi
+
 enable_hotspot() {
-    echo "Connection failed. Re-enabling hotspot..."
+    echo "Connection failed (or forcing hotspot). Re-enabling hotspot..."
     
     # Get CPU ID for unique SSID
     CPU_ID="0000"
@@ -25,7 +30,10 @@ enable_hotspot() {
     echo "Creating hotspot: $HOTSPOT_SSID"
 
     # Create new hotspot with dynamic SSID
-    # Note: We rely on nmcli creating a connection. We try to infer the name or just modify common names.
+    # Explicitly use 'hotspot-ap' as connection name to match user expectation if possible, 
+    # but nmcli syntax varies.
+    # Note: 'nmcli device wifi hotspot' creates a profile. 
+    # We let nmcli decide the name, then find it, to be robust.
     if nmcli device wifi hotspot ifname wlan0 ssid "$HOTSPOT_SSID" password "$HOTSPOT_PASSWORD"; then
         
         # Disable Wi-Fi powersave on this hotspot profile
@@ -55,6 +63,11 @@ enable_hotspot() {
         echo "Failed to enable hotspot."
     fi
 }
+
+if [ "$FORCE_HOTSPOT" = true ]; then
+    enable_hotspot
+    exit 0
+fi
 
 if [ -z "$SSID" ]; then
     echo "Error: SSID is required."
