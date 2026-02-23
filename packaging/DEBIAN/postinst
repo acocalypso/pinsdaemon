@@ -42,6 +42,11 @@ if [ -f "/usr/local/bin/wifi-automanage.py" ]; then
     chmod 755 /usr/local/bin/wifi-automanage.py
 fi
 
+if [ -f "/home/pi/pins-scripts/hotspot.sh" ]; then
+    chown pi:pi /home/pi/pins-scripts/hotspot.sh
+    chmod 755 /home/pi/pins-scripts/hotspot.sh
+fi
+
 if [ -f "/usr/local/bin/wifi-scan.py" ]; then
     chown root:root /usr/local/bin/wifi-scan.py
     chmod 755 /usr/local/bin/wifi-scan.py
