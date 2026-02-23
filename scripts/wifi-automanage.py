@@ -64,8 +64,8 @@ def connect_to_wifi(ssid, band=None):
         
         args = ["sudo", WIFI_CONNECT_SCRIPT, ssid, "", band if band else ""]
         
-        # Filter empty args
-        args = [a for a in args if a]
+        # Do not filter empty args as positional arguments matter for wifi-connect.sh
+        # args = [a for a in args if a]
         
         result = subprocess.run(args)
         return result.returncode == 0

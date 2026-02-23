@@ -1,5 +1,4 @@
 #!/bin/bash
-# set -e is removed to handle errors manually
 
 SSID="$1"
 PASSWORD="$2"
@@ -37,11 +36,6 @@ enable_hotspot() {
     # We let nmcli decide the name, then find it, to be robust.
     if nmcli device wifi hotspot ifname wlan0 ssid "$HOTSPOT_SSID" password "$HOTSPOT_PASSWORD"; then
         
-        # Disable Wi-Fi powersave on this hotspot profile
-        # Use the name 'hotspot-ap' if user script assumes it, or try to find the active connection
-        # The user's script deleted 'hotspot-ap' before creating. 
-        # nmcli usually creates 'Hotspot' or similar if name not specified. 
-        # But let's try to target what was just active/created.
         
         # Try finding the connection we just created (active on wlan0)
         NEW_CONN=$(nmcli -t -f NAME,DEVICE connection show --active | grep ":wlan0" | cut -d: -f1 | head -n1)
@@ -113,22 +107,27 @@ fi
 echo "Connecting to $SSID..."
 
 CONNECT_SUCCESS=0
-CONNECT_CMD="nmcli device wifi connect '$SSID'"
+
+# Use array for command construction to handle spaces and quotes safely
+CMD=("nmcli" "device" "wifi" "connect" "$SSID")
 
 if [ -n "$PASSWORD" ]; then
-    CONNECT_CMD="$CONNECT_CMD password '$PASSWORD' name '$SSID'"
-fi
-
-if [ -n "$BAND" ]; then
-    # Append band property
-    # Since we can't easily append property with key=val syntax in command string construction without care
-    # We will use eval or just branch logic.
-    echo "Using band: $BAND"
-    CONNECT_CMD="$CONNECT_CMD wifi.band $BAND"
+    CMD+=("password" "$PASSWORD" "name" "$SSID")
 fi
 
 # Execute connection command
-eval $CONNECT_CMD || CONNECT_SUCCESS=1
+"${CMD[@]}" || CONNECT_SUCCESS=1
+
+if [ $CONNECT_SUCCESS -eq 0 ] && [ -n "$BAND" ]; then
+    echo "Applying band preference: $BAND"
+    # Use 802-11-wireless.band for better compatibility
+    if nmcli connection modify "$SSID" 802-11-wireless.band "$BAND"; then
+        echo "Reactivating connection with band preference settings..."
+        nmcli connection up "$SSID" || CONNECT_SUCCESS=1
+    else
+        echo "Warning: Failed to set wifi band to $BAND"
+    fi
+fi
 
 if [ $CONNECT_SUCCESS -ne 0 ]; then
     echo "Failed to connect to $SSID."
