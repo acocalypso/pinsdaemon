@@ -67,6 +67,7 @@ class WifiNetwork(BaseModel):
 class WifiConnectRequest(BaseModel):
     ssid: str
     password: Optional[str] = None
+    auto_connect: Optional[bool] = False
 
 class WifiAutoConnectRequest(BaseModel):
     ssid: Optional[str] = None
@@ -311,6 +312,10 @@ async def connect_wifi(request: WifiConnectRequest):
     Connects to a WiFi network.
     This starts a background job to run the connection script.
     """
+    # If auto_connect is requested, save the config immediately
+    if request.auto_connect:
+        save_wifi_config(request.ssid, True)
+    
     cmd = ["sudo", "-n", WIFI_CONNECT_SCRIPT_PATH, request.ssid, request.password or ""]
     
     # Check if script exists (only nice to have check, the job will fail if not found)

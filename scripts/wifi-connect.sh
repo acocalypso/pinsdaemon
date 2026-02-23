@@ -25,7 +25,7 @@ enable_hotspot() {
     fi
 
     HOTSPOT_SSID="pins-$CPU_ID"
-    HOTSPOT_PASSWORD="touchnstars"  # Change this
+    HOTSPOT_PASSWORD="touchnstars"
 
     echo "Creating hotspot: $HOTSPOT_SSID"
 
