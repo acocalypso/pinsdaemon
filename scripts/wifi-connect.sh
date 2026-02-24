@@ -70,14 +70,14 @@ fi
 ACTIVE_SSID=$(nmcli -t -f NAME,TYPE connection show --active | grep ":802-11-wireless" | cut -d: -f1 | head -n1)
 
 if [ "$ACTIVE_SSID" == "$SSID" ]; then
-    echo "Already connected to $SSID."
-    # Optional: Ensure band preference if specified (might require reconnect, so maybe skip for stability?)
+    # If band is specified, we check if we need to switch bands
     if [ -n "$BAND" ]; then
-         # Check current frequency/band if possible, but for now just assuming success is safer
-         # to avoid unnecessary disconnects.
-         echo "Band preference verification skipped to maintain active connection."
+        echo "Already connected, but band preference selected ($BAND). Verifying settings..."
+        # We proceed to standard connection logic to ensure band settings are applied
+    else
+        echo "Already connected to $SSID."
+        exit 0
     fi
-    exit 0
 fi
 
 echo "Preparing to connect to $SSID..."

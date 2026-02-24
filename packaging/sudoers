@@ -20,6 +20,6 @@ sysupdate-api ALL=(root) NOPASSWD: /usr/bin/journalctl -f -u pins-sysupgrade-* -
 sysupdate-api ALL=(root) NOPASSWD: /bin/journalctl -f -u pins-sysupgrade-* --no-tail
 sysupdate-api ALL=(root) NOPASSWD: /usr/bin/systemctl is-active pins-sysupgrade-*
 sysupdate-api ALL=(root) NOPASSWD: /bin/systemctl is-active pins-sysupgrade-*
-sysupdate-api ALL=(root) NOPASSWD: /usr/bin/systemctl show -p ExecMainStatus,Result --value pins-sysupgrade-*
-sysupdate-api ALL=(root) NOPASSWD: /bin/systemctl show -p ExecMainStatus,Result --value pins-sysupgrade-*
+sysupdate-api ALL=(root) NOPASSWD: /usr/bin/systemctl show -p ExecMainStatus\,Result --value pins-sysupgrade-*
+sysupdate-api ALL=(root) NOPASSWD: /bin/systemctl show -p ExecMainStatus\,Result --value pins-sysupgrade-*
 
