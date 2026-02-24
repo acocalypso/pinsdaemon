@@ -1,6 +1,7 @@
 import os
 import json
 import asyncio
+import uuid
 from datetime import datetime
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -92,16 +93,20 @@ async def trigger_upgrade(request: UpgradeRequest):
     """
     Triggers the system upgrade script.
     """
+    # Create specific job ID to track the systemd unit
+    job_id = str(uuid.uuid4())
+    
     # Construct command
     # Using 'sudo' + script path.
     # Note: verify sudoers is set up correctly.
-    cmd = ["sudo", "-n", SCRIPT_PATH]
+    cmd = ["sudo", "-n", SCRIPT_PATH, "--job-id", job_id]
     if request.dryRun:
         # Pass a flag if the script supports it, or just log meant for dry run.
         # Assuming the script takes --dry-run
         cmd.append("--dry-run")
 
-    job_id = await job_manager.start_job(cmd)
+    # Pass the pre-generated ID so job manager uses it
+    await job_manager.start_job(cmd, job_id=job_id)
     job = job_manager.get_job(job_id)
     
     return JobResponse(
