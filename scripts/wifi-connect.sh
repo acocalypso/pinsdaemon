@@ -66,6 +66,20 @@ if [ -z "$SSID" ]; then
     exit 1
 fi
 
+# Check if we are already connected to the target SSID
+ACTIVE_SSID=$(nmcli -t -f NAME,TYPE connection show --active | grep ":802-11-wireless" | cut -d: -f1 | head -n1)
+
+if [ "$ACTIVE_SSID" == "$SSID" ]; then
+    echo "Already connected to $SSID."
+    # Optional: Ensure band preference if specified (might require reconnect, so maybe skip for stability?)
+    if [ -n "$BAND" ]; then
+         # Check current frequency/band if possible, but for now just assuming success is safer
+         # to avoid unnecessary disconnects.
+         echo "Band preference verification skipped to maintain active connection."
+    fi
+    exit 0
+fi
+
 echo "Preparing to connect to $SSID..."
 
 # 0. Force a rescan to ensure we know the security type
@@ -145,7 +159,8 @@ while [ $count -lt $MAX_RETRIES ]; do
     "${CMD[@]}" && { CONNECT_SUCCESS=0; break; } || {
         echo "Connection attempt failed. Retrying scan..."
         sudo nmcli device wifi rescan 2>/dev/null || true
-        sleep 5
+        # Wait a bit longer for scan results to propagate
+        sleep 8
         count=$((count + 1))
     }
 done
