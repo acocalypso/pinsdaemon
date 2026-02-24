@@ -91,12 +91,17 @@ if [ -n "$existing_hotspots" ]; then
 fi
 
 # 2. Clean up any EXISTING profiles for the target SSID
-# If we have a new password, remove old connection to force update.
-# If no password is provided, we keep existing profile (if any) to reuse saved credentials.
+# We only delete the profile if we actually intend to update it with a new password
+# BUT, deleting it makes "device connect" rely purely on scan results, which can be flaky.
+# Instead, we should try to modify the existing connection if it exists, or verify the network is visible.
+
 if [ -n "$PASSWORD" ]; then
+    # If a profile exists, we can try to update its password instead of deleting/recreating
     if nmcli connection show "$SSID" >/dev/null 2>&1; then
-        echo "Removing stale connection profile for $SSID..."
-        nmcli connection delete "$SSID" || true
+        echo "Updating existing connection profile for $SSID..."
+        nmcli connection modify "$SSID" wifi-sec.psk "$PASSWORD" || true
+        # We also unset the "secrets" flag just in case it was setup differently
+        # nmcli connection modify "$SSID" wifi-sec.key-mgmt wpa-psk || true
     fi
 fi
 
@@ -105,38 +110,60 @@ echo "Connecting to $SSID..."
 
 CONNECT_SUCCESS=0
 
-# Logic to prefer existing connection if no password provided
-if [ -z "$PASSWORD" ] && nmcli connection show "$SSID" >/dev/null 2>&1; then
-    echo "Found existing profile for $SSID. Attempting to bring it up..."
-    if nmcli connection up "$SSID"; then
-        CONNECT_SUCCESS=0
-    else
-        echo "Failed to bring up existing connection. Retrying with device connect..."
-        CONNECT_SUCCESS=1
+# Loop to retry connection if "No network found" occurs (scan timing issue)
+MAX_RETRIES=2
+count=0
+CONNECT_SUCCESS=1 # Default to failure unless proven otherwise
+
+while [ $count -lt $MAX_RETRIES ]; do
+    # Logic to prefer existing connection
+    # We try "connection up" first if profile exists (whether we just updated pw or not)
+    # BUT, if we have a NEW password provided in arguments, "connection up" might use the OLD password stored in the profile
+    # unless we successfully modified it above. If modification failed or didn't happen, we might need to be careful.
+    # However, since we did 'nmcli connection modify' above, 'connection up' should use the new password.
+    
+    if nmcli connection show "$SSID" >/dev/null 2>&1; then
+        echo "Found existing profile for $SSID. Attempting to bring it up..."
+        if nmcli connection up "$SSID"; then
+            CONNECT_SUCCESS=0
+            break
+        else
+            echo "Failed to bring up existing connection." 
+            # If we failed to bring it up, it might be due to wrong interface or other issues.
+            # We will fall through to 'device wifi connect' which is more aggressive.
+        fi
     fi
-else
-    CONNECT_SUCCESS=1 # Treat as not yet connected so we fall through to device connect logic if appropriate
-fi
 
-# If connection up failed or we have a password (forcing new connection logic)
-if [ $CONNECT_SUCCESS -ne 0 ]; then
-    # Use array for command construction to handle spaces and quotes safely
+    # Fallback to device connect (creates new profile if missing, or updates existing if arguments provided)
     CMD=("nmcli" "device" "wifi" "connect" "$SSID")
-
     if [ -n "$PASSWORD" ]; then
-        CMD=("nmcli" "device" "wifi" "connect" "$SSID" "password" "$PASSWORD" "name" "$SSID")
+         CMD+=("password" "$PASSWORD" "name" "$SSID")
     fi
 
     # Execute connection command
-    "${CMD[@]}" || CONNECT_SUCCESS=1
+    echo "Executing: ${CMD[@]}" 
+    "${CMD[@]}" && { CONNECT_SUCCESS=0; break; } || {
+        echo "Connection attempt failed. Retrying scan..."
+        sudo nmcli device wifi rescan 2>/dev/null || true
+        sleep 5
+        count=$((count + 1))
+    }
+done
+
+if [ $CONNECT_SUCCESS -ne 0 ]; then
+   echo "Failed to connect to $SSID after multiple attempts."
+   enable_hotspot
+   exit 1
 fi
 
-if [ $CONNECT_SUCCESS -eq 0 ] && [ -n "$BAND" ]; then
+echo "Successfully connected to $SSID."
+
+if [ -n "$BAND" ]; then
     echo "Applying band preference: $BAND"
     # Use 802-11-wireless.band for better compatibility
     if nmcli connection modify "$SSID" 802-11-wireless.band "$BAND"; then
         echo "Reactivating connection with band preference settings..."
-        nmcli connection up "$SSID" || CONNECT_SUCCESS=1
+        nmcli connection up "$SSID" || true
     else
         echo "Warning: Failed to set wifi band to $BAND"
     fi
