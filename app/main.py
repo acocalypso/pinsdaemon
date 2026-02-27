@@ -395,6 +395,17 @@ async def set_system_time(request: SystemTimeRequest):
     Sets the system time using timedatectl (requires sudo).
     The timestamp should be a float (Unix epoch).
     """
+    # First, disable NTP (Automatic time synchronization) to avoid errors
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "sudo", "-n", "timedatectl", "set-ntp", "false",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await proc.wait()
+    except Exception as e:
+        print(f"Error disabling NTP: {e}")
+
     # Convert timestamp to format expected by timedatectl: "YYYY-MM-DD HH:MM:SS"
     dt = datetime.fromtimestamp(request.timestamp)
     time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
