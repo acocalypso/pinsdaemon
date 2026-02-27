@@ -76,6 +76,11 @@ class WifiAutoConnectRequest(BaseModel):
     auto_connect: bool
     band: Optional[str] = None # "2.4GHz" or "5GHz" where bg=2.4 and a=5
 
+class WifiStatusResponse(BaseModel):
+    connected: bool
+    ssid: Optional[str] = None
+    band: Optional[str] = None # "2.4GHz" or "5GHz"
+
 class SystemTimeRequest(BaseModel):
     timestamp: float
 
@@ -370,6 +375,68 @@ async def set_wifi_auto_connect(config: WifiAutoConnectRequest):
         
     save_wifi_config(new_ssid, config.auto_connect, config.band)
     return {"status": "success", "message": "Wifi auto-connect configuration saved", "config": {"ssid": new_ssid, "auto_connect": config.auto_connect, "band": config.band}}
+
+
+@app.get("/wifi/status", response_model=WifiStatusResponse, dependencies=[Depends(verify_token)])
+async def get_wifi_status():
+    """
+    Check current WiFi connection status and SSID.
+    """
+    try:
+        # Use nmcli to get active connections
+        # We use 'device wifi' to get frequency information directly for the connected network
+        cmd = ["nmcli", "-t", "-f", "IN-USE,SSID,FREQ", "device", "wifi"]
+        
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        output = stdout.decode().strip()
+        
+        connected_ssid = None
+        band = None 
+        
+        if output:
+            for line in output.split('\n'):
+                # Format: *:SSID:Frequency MHz
+                # Example: *:MyHomeWifi:5240 MHz
+                # Clean up any potential escaping
+                parts = line.split(':')
+                
+                # Check if this line is the "in-use" one (starts with *)
+                if parts[0] == "*":
+                    if len(parts) >= 3:
+                        ssid = parts[1]
+                        
+                        # Filter out hotspot self-connection if needed
+                        if ssid == "Hotspot" or ssid.startswith("pins-") or ssid == "hotspot-ap":
+                             continue
+                             
+                        connected_ssid = ssid
+                        freq_str = parts[2].replace(" MHz", "").strip()
+                        
+                        try:
+                            freq = int(freq_str)
+                            if 2400 <= freq <= 2500:
+                                band = "2.4GHz"
+                            elif 5000 <= freq <= 6000:
+                                band = "5GHz"
+                        except:
+                            pass
+                            
+                    break
+        
+        return WifiStatusResponse(
+            connected=bool(connected_ssid),
+            ssid=connected_ssid,
+            band=band
+        )
+        
+    except Exception as e:
+        print(f"Error checking wifi status: {e}")
+        return WifiStatusResponse(connected=False, ssid=None, band=None)
 
 
 class SystemTimeResponse(BaseModel):
