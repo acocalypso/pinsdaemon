@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import uuid
+import re
 from datetime import datetime
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -83,6 +84,11 @@ class WifiStatusResponse(BaseModel):
 
 class SystemTimeRequest(BaseModel):
     timestamp: float
+
+class PiTemperatureResponse(BaseModel):
+    celsius: float
+    fahrenheit: float
+    source: str
 
 class JobResponse(BaseModel):
 
@@ -442,6 +448,50 @@ async def get_wifi_status():
 class SystemTimeResponse(BaseModel):
     timestamp: float
     iso: str
+
+
+@app.get("/system/temperature", response_model=PiTemperatureResponse, dependencies=[Depends(verify_token)])
+async def get_system_temperature():
+    """
+    Get current Raspberry Pi temperature in Celsius and Fahrenheit.
+    """
+    # Try vcgencmd first (common on Raspberry Pi OS)
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "vcgencmd", "measure_temp",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        if proc.returncode == 0:
+            output = stdout.decode().strip()
+            # Expected format: temp=48.7'C
+            match = re.search(r"temp=([0-9]+(?:\.[0-9]+)?)", output)
+            if match:
+                celsius = float(match.group(1))
+                return PiTemperatureResponse(
+                    celsius=celsius,
+                    fahrenheit=(celsius * 9 / 5) + 32,
+                    source="vcgencmd"
+                )
+    except Exception as e:
+        print(f"vcgencmd temperature read failed: {e}")
+
+    # Fallback: Linux thermal zone file (typically millidegrees C)
+    try:
+        thermal_path = "/sys/class/thermal/thermal_zone0/temp"
+        with open(thermal_path, "r", encoding="utf-8") as f:
+            raw = f.read().strip()
+        celsius = float(raw) / 1000.0
+        return PiTemperatureResponse(
+            celsius=celsius,
+            fahrenheit=(celsius * 9 / 5) + 32,
+            source="thermal_zone0"
+        )
+    except Exception as e:
+        print(f"thermal_zone0 temperature read failed: {e}")
+
+    raise HTTPException(status_code=500, detail="Unable to read system temperature")
 
 
 @app.get("/system/time", response_model=SystemTimeResponse, dependencies=[Depends(verify_token)])
